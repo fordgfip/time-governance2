@@ -936,7 +936,7 @@
       const trackedRatio = free > 0 ? clamp(totalTracked / free) : 0;
       const productionFloorScore = scoreAtLeast(p, free * 0.35);
       const productiveDomination = (m + dn) > 0 ? (p + a) / (m + dn) : (p + a > 0 ? 2 : 0);
-      const productiveDominanceScore = clamp(productiveDomination / 1.2);
+      const productiveDominancePoints = productiveDomination * 10;
 
       const dnLimit = 0.5 * p;
       const dnDominatedScore = scoreAtMost(dn, dnLimit);
@@ -966,7 +966,7 @@
         {
           key: "domination",
           title: "Domination productive réelle",
-          points: productiveDominanceScore * 10,
+          points: productiveDominancePoints,
           max: 10,
           explain: `Ratio réel (Produire + Agir) / (Maintenir + DN) : ${productiveDomination.toFixed(2)}. Objectif : ≥ 1,20.`
         },
