@@ -807,11 +807,12 @@
       return Math.max(0, (16 - unavailable) * 3600);
     }
 
-    function renderCategory(key, cfg, timers, free) {
+    function renderCategory(key, cfg, timers, free, totalTracked) {
       const actual = timers[key] || 0;
       const minTarget = free * cfg.min / 100;
       const maxTarget = free * cfg.max / 100;
       const actualPct = free > 0 ? actual / free * 100 : 0;
+      const relativePct = totalTracked > 0 ? actual / totalTracked * 100 : 0;
       const barPct = Math.min(100, actualPct);
       const percentText = percentComparisonText(actualPct, cfg.min, cfg.max);
       const status = getStatus(key, actual, minTarget, maxTarget, free);
@@ -832,10 +833,11 @@
           <div class="time-main">${formatDuration(actual)}</div>
           <div class="ideal">Cible projetée : ${formatDuration(minTarget)} – ${formatDuration(maxTarget)}</div>
           <div class="percent-compare">
-            <div class="percent-pill"><span>% théorique</span><strong>${cfg.min}–${cfg.max}%</strong></div>
-            <div class="percent-pill"><span>% réel</span><strong>${formatPercent(actualPct)}</strong></div>
+            <div class="percent-pill"><span>Objectif théorique</span><strong>${cfg.min}–${cfg.max}%</strong></div>
+            <div class="percent-pill"><span>% du temps total attendu</span><strong>${formatPercent(actualPct)}</strong></div>
+            <div class="percent-pill"><span>% relatif réel</span><strong>${formatPercent(relativePct)}</strong></div>
           </div>
-          <div class="percent-gap">${percentText}</div>
+          <div class="percent-gap">${percentText} Le % relatif indique le poids de cette catégorie parmi les tâches déjà chronométrées.</div>
 
           <div class="bar-wrap" title="Zone claire = intervalle idéal ; barre pleine = temps réel">
             <div class="ideal-band" style="left:${cfg.min}%; width:${cfg.max - cfg.min}%; background:${cfg.color};"></div>
@@ -1036,8 +1038,10 @@
       const domination = (m + dn) > 0 ? (p + a) / (m + dn) : 0;
       document.getElementById("domination").textContent = domination.toFixed(2);
 
+      const totalTracked = Object.values(timers).reduce((sum, value) => sum + value, 0);
+
       categoriesEl.innerHTML = Object.entries(categories)
-        .map(([key, cfg]) => renderCategory(key, cfg, timers, free))
+        .map(([key, cfg]) => renderCategory(key, cfg, timers, free, totalTracked))
         .join("");
 
       const ruleDN = document.getElementById("ruleDN");
