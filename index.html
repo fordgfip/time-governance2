@@ -901,14 +901,24 @@
       const total = Object.values(timers).reduce((a, b) => a + b, 0);
       if (total < 60) return "Score non consolidé : aucune minute réelle suffisante n’a encore été enregistrée.";
       const weakest = [...scores].sort((a, b) => (a.points / a.max) - (b.points / b.max))[0];
-      if (score >= 85) return "Très bonne journée : les durées réelles respectent les bornes, la production existe réellement et la dissipation reste dominée.";
-      if (weakest.key === "couverture") return "Le point faible est la quantité de réel mesuré : trop peu de temps libre a été effectivement engagé dans les catégories.";
-      if (weakest.key === "ratio") return "Le point faible est la distribution réelle : les compteurs s’éloignent des intervalles cibles.";
-      if (weakest.key === "production") return "Le point faible est la production effective : il manque encore du temps réellement consacré à créer un output ou un actif.";
+      if (score >= 85) return "Très bonne journée : le temps réel engagé est suffisant, la production existe, la dissipation reste sous domination et les ratios réels collent aux objectifs.";
+      if (weakest.key === "coherence") return "Le point faible est la cohérence des ratios : le poids relatif réel des catégories s’éloigne des bornes objectifs.";
+      if (weakest.key === "couverture") return "Le point faible est la quantité de réel engagé : trop peu du temps libre a été effectivement chronométré.";
+      if (weakest.key === "production") return "Le point faible est la production effective : Produire reste trop bas par rapport au minimum attendu.";
       if (weakest.key === "domination") return "Le point faible est la domination productive : Produire + Agir ne domine pas assez Maintenir + DN dans les durées réelles.";
-      if (weakest.key === "dn") return "Le point faible est la dissipation : elle prend trop de place par rapport au temps libre ou par rapport à la production réelle.";
-      if (weakest.key === "surplus") return "Le point faible est le dépassement : une catégorie sort trop haut de sa borne utile et déséquilibre la journée.";
-      return "Le score est construit uniquement sur le temps chronométré : augmente le critère réel le plus faible.";
+      if (weakest.key === "dn") return "Le point faible est la dissipation : DN dépasse 0,5 × Produire dans les durées réelles.";
+      return "Le score est construit uniquement sur les compteurs réels : améliore le critère effectif le plus faible.";
+    }
+
+    function relativePercent(value, totalTracked) {
+      if (totalTracked <= 0) return 0;
+      return (value / totalTracked) * 100;
+    }
+
+    function outsideBandPenalty(actualPct, minPct, maxPct) {
+      if (actualPct < minPct) return minPct - actualPct;
+      if (actualPct > maxPct) return actualPct - maxPct;
+      return 0;
     }
 
     function computeScores(timers, free) {
@@ -917,74 +927,67 @@
       const m = timers.maintenir || 0;
       const dn = timers.dn || 0;
       const totalTracked = p + a + m + dn;
+
+      const pRel = relativePercent(p, totalTracked);
+      const aRel = relativePercent(a, totalTracked);
+      const mRel = relativePercent(m, totalTracked);
+      const dnRel = relativePercent(dn, totalTracked);
+
       const trackedRatio = free > 0 ? clamp(totalTracked / free) : 0;
-      const productiveDomination = (m + dn) > 0 ? (p + a) / (m + dn) : (p + a > 0 ? 2 : 0);
-      const dnByProductionLimit = 0.5 * p;
-      const dnByFreeLimit = free * 0.15;
-
-      const ratioScores = Object.entries(categories).map(([key, cfg]) => {
-        return scoreBand(timers[key] || 0, free * cfg.min / 100, free * cfg.max / 100);
-      });
-      const ratioScore = ratioScores.reduce((x, y) => x + y, 0) / ratioScores.length;
-
       const productionFloorScore = scoreAtLeast(p, free * 0.35);
+      const productiveDomination = (m + dn) > 0 ? (p + a) / (m + dn) : (p + a > 0 ? 2 : 0);
       const productiveDominanceScore = clamp(productiveDomination / 1.2);
-      const dnFreeScore = scoreAtMost(dn, dnByFreeLimit);
-      const dnProductionScore = dn <= dnByProductionLimit ? 1 : scoreAtMost(dn - dnByProductionLimit, Math.max(900, dnByProductionLimit));
-      const dnControlScore = Math.min(dnFreeScore, dnProductionScore);
 
-      const surplusScores = Object.entries(categories).map(([key, cfg]) => {
-        return scoreAtMost(timers[key] || 0, free * cfg.max / 100);
-      });
-      const surplusControlScore = surplusScores.reduce((x, y) => x + y, 0) / surplusScores.length;
+      const dnLimit = 0.5 * p;
+      const dnDominatedScore = scoreAtMost(dn, dnLimit);
+
+      const pPenalty = Math.max(0, 35 - pRel);
+      const aPenalty = outsideBandPenalty(aRel, 15, 25);
+      const mPenalty = outsideBandPenalty(mRel, 20, 30);
+      const dnPenalty = Math.max(0, dnRel - 15);
+      const coherencePenalty = pPenalty + aPenalty + mPenalty + dnPenalty;
+      const coherencePoints = clamp(50 - coherencePenalty, 0, 50);
 
       const scores = [
         {
           key: "couverture",
           title: "Réel engagé",
-          points: trackedRatio * 20,
-          max: 20,
-          explain: `Part du temps libre réellement chronométrée : ${Math.round(trackedRatio * 100)}%. Aucun point n’est donné pour du temps prévu mais non effectué.`
-        },
-        {
-          key: "ratio",
-          title: "Cohérence des ratios réels",
-          points: ratioScore * 25,
-          max: 25,
-          explain: "Compare les durées effectivement mesurées aux intervalles cibles de chaque catégorie."
+          points: trackedRatio * 15,
+          max: 15,
+          explain: `Part du temps libre réellement chronométrée : ${Math.round(trackedRatio * 100)}%. Barème : 15 points maximum.`
         },
         {
           key: "production",
           title: "Production effective",
-          points: productionFloorScore * 20,
-          max: 20,
-          explain: "Récompense uniquement le temps réel passé à produire, jusqu’au seuil bas de 35% du temps libre."
+          points: productionFloorScore * 15,
+          max: 15,
+          explain: `Temps Produire réel : ${formatDuration(p)}. Objectif minimum : ${formatDuration(free * 0.35)}.`
         },
         {
           key: "domination",
           title: "Domination productive réelle",
-          points: productiveDominanceScore * 15,
-          max: 15,
-          explain: "Évalue les durées réelles : (Produire + Agir) / (Maintenir + DN), objectif supérieur à 1,2."
+          points: productiveDominanceScore * 10,
+          max: 10,
+          explain: `Ratio réel (Produire + Agir) / (Maintenir + DN) : ${productiveDomination.toFixed(2)}. Objectif : ≥ 1,20.`
         },
         {
           key: "dn",
           title: "Dissipation dominée",
-          points: dnControlScore * 15,
-          max: 15,
-          explain: "DN doit rester sous 15% du temps libre et sous 0,5 × Produire, sur les compteurs réels."
+          points: dnDominatedScore * 10,
+          max: 10,
+          explain: `DN réel : ${formatDuration(dn)}. Plafond : 0,5 × Produire = ${formatDuration(dnLimit)}.`
         },
         {
-          key: "surplus",
-          title: "Absence de dépassement",
-          points: surplusControlScore * 5,
-          max: 5,
-          explain: "Pénalise les catégories qui dépassent leur borne haute réelle, surtout quand elles cannibalisent l’équilibre."
+          key: "coherence",
+          title: "Cohérence objectifs / ratios réels",
+          points: coherencePoints,
+          max: 50,
+          explain: `Barème : 50 - pénalités. Produire sous 35% : -${pPenalty.toFixed(1)} ; Agir hors 15–25% : -${aPenalty.toFixed(1)} ; Maintenir hors 20–30% : -${mPenalty.toFixed(1)} ; DN au-dessus de 15% : -${dnPenalty.toFixed(1)}. Ratios réels : P ${pRel.toFixed(1)}%, A ${aRel.toFixed(1)}%, M ${mRel.toFixed(1)}%, DN ${dnRel.toFixed(1)}%.`
         }
       ];
 
       const total = scores.reduce((sum, item) => sum + item.points, 0);
-      return { total: Math.round(total), scores };
+      return { total: Math.round(clamp(total, 0, 100)), scores };
     }
 
     function renderScores(timers, free) {
