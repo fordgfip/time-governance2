@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gouvernance temporelle — projection vs réel</title>
+  <style>
+    :root {
+      --bg: #07111f;
+      --card: rgba(15, 23, 42, 0.92);
+      --card-2: #020617;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --border: rgba(148, 163, 184, 0.22);
+      --accent: #38bdf8;
+      --good: #22c55e;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+      --prod: #38bdf8;
+      --act: #a78bfa;
+      --maint: #22c55e;
+      --dn: #f59e0b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(56, 189, 248, 0.18), transparent 34rem),
+        radial-gradient(circle at top right, rgba(34, 197, 94, 0.13), transparent 30rem),
+        var(--bg);
+      padding: 28px;
+    }
+
+    .app { max-width: 1240px; margin: 0 auto; }
+
+    header { margin-bottom: 24px; }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 5vw, 4rem);
+      letter-spacing: -0.06em;
+      line-height: 0.95;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      max-width: 860px;
+      line-height: 1.55;
+      font-size: 1.05rem;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 22px;
+      box-shadow: 0 24px 70px rgba(0,0,0,0.26);
+      backdrop-filter: blur(12px);
+    }
+
+    h2 { margin: 0 0 14px; letter-spacing: -0.03em; }
+    h3 { margin: 0 0 8px; }
+
+    label {
+      display: block;
+      margin: 15px 0 8px;
+      color: #cbd5e1;
+      font-weight: 800;
+      font-size: 0.95rem;
+    }
+
+    input {
+      width: 100%;
+      background: var(--card-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 13px 14px;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.45;
+      margin-top: 8px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 14px;
+      font-weight: 900;
+      cursor: pointer;
+      color: #00111c;
+      background: linear-gradient(135deg, #38bdf8, #22c55e);
+      transition: transform 0.12s ease, opacity 0.12s ease;
+    }
+
+    button:hover { transform: translateY(-1px); }
+    button.secondary { background: #1e293b; color: var(--text); border: 1px solid var(--border); }
+    button.danger { background: #7f1d1d; color: #fee2e2; border: 1px solid rgba(248, 113, 113, 0.38); }
+    button.stop { background: #f59e0b; color: #171000; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+    .full { width: 100%; margin-top: 18px; }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .metric {
+      background: var(--card-2);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.82rem;
+      margin-bottom: 8px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 1.6rem;
+      letter-spacing: -0.04em;
+    }
+
+    .category-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .category {
+      background: var(--card-2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 18px;
+    }
+
+    .category-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: start;
+      margin-bottom: 12px;
+    }
+
+    .badge {
+      font-size: 0.8rem;
+      padding: 6px 9px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.12);
+      color: #cbd5e1;
+      white-space: nowrap;
+      font-weight: 800;
+    }
+
+    .time-main {
+      font-size: 2.15rem;
+      line-height: 1;
+      letter-spacing: -0.05em;
+      font-weight: 950;
+      margin: 8px 0 6px;
+    }
+
+    .ideal {
+      color: var(--muted);
+      font-size: 0.94rem;
+      margin-bottom: 10px;
+    }
+
+    .percent-compare {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin: 0 0 14px;
+    }
+
+    .percent-pill {
+      padding: 9px 10px;
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      background: rgba(15, 23, 42, 0.58);
+      border-radius: 14px;
+    }
+
+    .percent-pill span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 850;
+      margin-bottom: 4px;
+    }
+
+    .percent-pill strong {
+      font-size: 1.05rem;
+      letter-spacing: -0.03em;
+    }
+
+    .percent-gap {
+      color: var(--muted);
+      font-size: 0.86rem;
+      margin: -5px 0 12px;
+      line-height: 1.35;
+    }
+
+    .bar-wrap {
+      position: relative;
+      height: 18px;
+      background: rgba(148, 163, 184, 0.12);
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 10px 0 12px;
+      border: 1px solid rgba(148, 163, 184, 0.1);
+    }
+
+    .ideal-band {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      border-radius: 999px;
+      opacity: 0.38;
+    }
+
+    .actual-bar {
+      position: absolute;
+      top: 4px;
+      bottom: 4px;
+      left: 0;
+      border-radius: 999px;
+      min-width: 0;
+    }
+
+    .status {
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.35;
+      min-height: 38px;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .active {
+      outline: 2px solid rgba(56, 189, 248, 0.5);
+      box-shadow: 0 0 0 6px rgba(56, 189, 248, 0.08);
+    }
+
+    .rules {
+      margin-top: 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .rule {
+      background: rgba(2, 6, 23, 0.66);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      line-height: 1.45;
+      color: #cbd5e1;
+    }
+
+    .rule strong { color: var(--text); }
+
+    .footer-note {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+
+
+    .score-panel {
+      margin-top: 20px;
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.92));
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 22px;
+      box-shadow: 0 24px 70px rgba(0,0,0,0.24);
+    }
+
+    .score-top {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .score-circle {
+      width: 190px;
+      height: 190px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: conic-gradient(var(--accent) var(--score-angle, 0deg), rgba(148, 163, 184, 0.14) 0deg);
+      position: relative;
+      margin: auto;
+    }
+
+    .score-circle::after {
+      content: "";
+      position: absolute;
+      inset: 13px;
+      border-radius: 50%;
+      background: var(--card-2);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+    }
+
+    .score-value {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+    }
+
+    .score-value strong {
+      display: block;
+      font-size: 3rem;
+      letter-spacing: -0.08em;
+      line-height: 1;
+    }
+
+    .score-value span {
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .score-diagnosis {
+      display: grid;
+      gap: 10px;
+    }
+
+    .rank {
+      display: inline-flex;
+      width: fit-content;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(56, 189, 248, 0.34);
+      background: rgba(56, 189, 248, 0.1);
+      color: #bae6fd;
+      font-weight: 950;
+      letter-spacing: 0.02em;
+    }
+
+    .diagnosis-text {
+      color: #dbeafe;
+      font-size: 1.08rem;
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .score-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .score-item {
+      background: rgba(2, 6, 23, 0.72);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 14px;
+    }
+
+    .score-item-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: baseline;
+      margin-bottom: 10px;
+    }
+
+    .score-item-title {
+      font-weight: 950;
+      letter-spacing: -0.02em;
+    }
+
+    .score-item-points {
+      color: #cbd5e1;
+      font-weight: 950;
+      white-space: nowrap;
+    }
+
+    .score-bar {
+      height: 12px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(148, 163, 184, 0.13);
+      border: 1px solid rgba(148, 163, 184, 0.1);
+      margin-bottom: 9px;
+    }
+
+    .score-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #38bdf8, #22c55e);
+    }
+
+    .score-explain {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.42;
+    }
+
+    .penalty .score-fill { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+
+
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin: 18px 0 24px;
+      flex-wrap: wrap;
+    }
+
+    .tab-button {
+      background: rgba(15, 23, 42, 0.82);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .tab-button.selected {
+      background: linear-gradient(135deg, #38bdf8, #22c55e);
+      color: #00111c;
+      border-color: transparent;
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.visible { display: block; }
+
+    button.success { background: linear-gradient(135deg, #22c55e, #84cc16); color: #052e16; }
+
+    .day-ended {
+      margin-top: 14px;
+      padding: 13px 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(34, 197, 94, 0.35);
+      background: rgba(34, 197, 94, 0.1);
+      color: #bbf7d0;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .weekday {
+      color: var(--muted);
+      font-weight: 900;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      text-align: center;
+      padding: 6px 0;
+    }
+
+    .calendar-day {
+      min-height: 112px;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: rgba(2, 6, 23, 0.68);
+      padding: 12px;
+      display: grid;
+      align-content: start;
+      gap: 8px;
+    }
+
+    .calendar-day.empty { opacity: 0.22; }
+
+    .calendar-date {
+      font-weight: 950;
+      color: #cbd5e1;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .calendar-score {
+      font-size: 1.7rem;
+      line-height: 1;
+      font-weight: 950;
+      letter-spacing: -0.06em;
+    }
+
+    .calendar-rank {
+      color: var(--muted);
+      font-size: 0.78rem;
+      line-height: 1.25;
+      min-height: 2em;
+    }
+
+    .mini-bars { display: grid; gap: 4px; }
+    .mini-bar { height: 5px; border-radius: 999px; background: rgba(148,163,184,0.12); overflow: hidden; }
+    .mini-fill { height: 100%; border-radius: 999px; }
+
+    .history-list {
+      margin-top: 18px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .history-row {
+      display: grid;
+      grid-template-columns: 120px 90px 1fr;
+      gap: 12px;
+      align-items: center;
+      background: rgba(2, 6, 23, 0.68);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 12px;
+    }
+
+    .history-score { font-weight: 950; font-size: 1.25rem; }
+    .history-detail { color: var(--muted); font-size: 0.88rem; }
+
+    @media (max-width: 980px) {
+      body { padding: 18px; }
+      .layout { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .category-grid, .rules { grid-template-columns: 1fr; }
+      .score-top { grid-template-columns: 1fr; }
+      .score-grid { grid-template-columns: 1fr; }
+      .calendar-grid { gap: 6px; }
+      .calendar-day { min-height: 96px; padding: 9px; }
+      .history-row { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 560px) {
+      .metrics { grid-template-columns: 1fr; }
+      .button-row, .actions { grid-template-columns: 1fr; }
+      .time-main { font-size: 1.8rem; }
+      .calendar-grid { grid-template-columns: 1fr; }
+      .weekday, .calendar-day.empty { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>Gouvernance temporelle</h1>
+      <p class="subtitle">
+        Définis ton réveil et ton indisponibilité incompressible. La page calcule ton temps libre réel,
+        conserve les intervalles idéaux, puis compare tes compteurs effectifs à la zone cible de chaque catégorie.
+      </p>
+      <nav class="tabs" aria-label="Navigation principale">
+        <button class="tab-button selected" data-tab="today">Aujourd’hui</button>
+        <button class="tab-button" data-tab="calendar">Calendrier</button>
+      </nav>
+    </header>
+
+    <section class="tab-panel visible" id="tab-today">
+    <section class="layout">
+      <aside class="card">
+        <h2>Paramètres du jour</h2>
+
+        <label for="wakeTime">Heure de réveil</label>
+        <input id="wakeTime" type="time" value="08:00" />
+        <p class="hint">Le sommeil suivant est automatiquement placé sur 8h : réveil 08:00 → sommeil 00:00–08:00.</p>
+
+        <label for="unavailable">Indisponibilité incompressible</label>
+        <input id="unavailable" type="number" min="0" max="16" step="0.25" value="8" />
+        <p class="hint">Exemples : 0 si journée entièrement libre, 8 à 10 si travail + trajets.</p>
+
+        <div class="button-row">
+          <button id="saveDay">Recalculer</button>
+          <button id="resetAll" class="danger">Reset réel</button>
+        </div>
+        <button id="endDay" class="success full">Mettre fin à la journée</button>
+        <div id="endedNotice" class="day-ended" style="display:none;"></div>
+
+        <p class="footer-note">
+          Les compteurs sont sauvegardés dans ton navigateur. Tu peux fermer la page et reprendre plus tard sur le même PC.
+        </p>
+      </aside>
+
+      <section class="card">
+        <div class="metrics">
+          <div class="metric"><span>Temps éveillé</span><strong id="awakeTime">16h00</strong></div>
+          <div class="metric"><span>Temps libre réel</span><strong id="freeTime">8h00</strong></div>
+          <div class="metric"><span>Sommeil suivant</span><strong id="sleepWindow">00:00–08:00</strong></div>
+          <div class="metric"><span>Domination</span><strong id="domination">0.00</strong></div>
+        </div>
+
+        <div class="category-grid" id="categories"></div>
+
+        <div class="rules">
+          <div class="rule" id="ruleDN"><strong>Plafond DN :</strong> DN ≤ 0,5 × Produire.</div>
+          <div class="rule" id="ruleDomination"><strong>Domination productive :</strong> (Produire + Agir) / (Maintenir + DN) doit viser &gt; 1,2.</div>
+        </div>
+
+        <section class="score-panel" id="scorePanel">
+          <div class="score-top">
+            <div class="score-circle" id="scoreCircle">
+              <div class="score-value">
+                <strong id="globalScore">0%</strong>
+                <span>Score global</span>
+              </div>
+            </div>
+            <div class="score-diagnosis">
+              <div class="rank" id="scoreRank">Initialisation</div>
+              <p class="diagnosis-text" id="scoreDiagnosis">
+                Lance un compteur pour commencer à mesurer la qualité réelle de la journée.
+              </p>
+              <p class="hint">
+                Le score est calculé uniquement à partir des durées réellement chronométrées : respect des intervalles,
+                domination productive, plafond DN, production effective et absence de surconsommation.
+              </p>
+            </div>
+          </div>
+          <div class="score-grid" id="scoreDetails"></div>
+        </section>
+      </section>
+    </section>
+    </section>
+
+    <section class="tab-panel" id="tab-calendar">
+      <section class="card">
+        <div class="calendar-header">
+          <div>
+            <h2>Calendrier des scores</h2>
+            <p class="hint">Chaque journée clôturée est enregistrée définitivement dans ton navigateur local. Le calendrier affiche le score final et les durées réelles.</p>
+          </div>
+          <div class="button-row" style="min-width:260px; margin-top:0;">
+            <button id="prevMonth" class="secondary">← Mois précédent</button>
+            <button id="nextMonth" class="secondary">Mois suivant →</button>
+          </div>
+        </div>
+        <h3 id="calendarTitle">Mois</h3>
+        <div class="calendar-grid" id="calendarGrid"></div>
+        <div class="history-list" id="historyList"></div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const categories = {
+      produire: {
+        label: "Produire",
+        min: 35,
+        max: 45,
+        color: "var(--prod)",
+        description: "Création de valeur, actifs cumulables, output visible."
+      },
+      agir: {
+        label: "Agir",
+        min: 15,
+        max: 25,
+        color: "var(--act)",
+        description: "Réduction de friction, tâches concrètes, réel administratif/logistique."
+      },
+      maintenir: {
+        label: "Maintenir",
+        min: 20,
+        max: 30,
+        color: "var(--maint)",
+        description: "Corps, environnement, alimentation, hygiène, récupération active."
+      },
+      dn: {
+        label: "Dissipation nutritive",
+        min: 0,
+        max: 15,
+        color: "var(--dn)",
+        description: "Exploration contrôlée, inspiration, modulation cognitive. Jamais dominante."
+      }
+    };
+
+    const state = JSON.parse(localStorage.getItem("timeGovernanceState") || "null") || {
+      wakeTime: "08:00",
+      unavailable: 8,
+      timers: { produire: 0, agir: 0, maintenir: 0, dn: 0 },
+      active: null,
+      activeStartedAt: null,
+      ended: false,
+      endedAt: null,
+      history: {},
+      calendarMonth: monthKey(new Date()),
+      lastDate: todayKey()
+    };
+
+    const wakeInput = document.getElementById("wakeTime");
+    const unavailableInput = document.getElementById("unavailable");
+    const categoriesEl = document.getElementById("categories");
+
+    state.history = state.history || {};
+    state.ended = Boolean(state.ended);
+    state.endedAt = state.endedAt || null;
+    state.calendarMonth = state.calendarMonth || monthKey(new Date());
+
+    wakeInput.value = state.wakeTime;
+    unavailableInput.value = state.unavailable;
+
+    function pad2(n) { return String(n).padStart(2, "0"); }
+
+    function todayKey() {
+      const d = new Date();
+      return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+    }
+
+    function monthKey(date) {
+      return `${date.getFullYear()}-${pad2(date.getMonth()+1)}`;
+    }
+
+    function save() {
+      localStorage.setItem("timeGovernanceState", JSON.stringify(state));
+    }
+
+    function hoursToSeconds(hours) {
+      return Math.max(0, Number(hours || 0)) * 3600;
+    }
+
+    function formatDuration(seconds) {
+      seconds = Math.max(0, Math.round(seconds));
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      if (h > 0) return `${h}h${String(m).padStart(2, "0")}`;
+      return `${m}m${String(s).padStart(2, "0")}`;
+    }
+
+    function formatPercent(value) {
+      if (!Number.isFinite(value)) return "0%";
+      const rounded = Math.round(value * 10) / 10;
+      return `${String(rounded).replace(".", ",")}%`;
+    }
+
+    function percentComparisonText(actualPct, minPct, maxPct) {
+      if (actualPct < minPct) return `Écart : ${formatPercent(minPct - actualPct)} sous la borne basse.`;
+      if (actualPct <= maxPct) return "Écart : dans l’intervalle théorique.";
+      return `Écart : ${formatPercent(actualPct - maxPct)} au-dessus de la borne haute.`;
+    }
+
+    function formatHM(totalMinutes) {
+      totalMinutes = ((totalMinutes % 1440) + 1440) % 1440;
+      const h = Math.floor(totalMinutes / 60);
+      const m = totalMinutes % 60;
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    }
+
+    function wakeMinutes() {
+      const [h, m] = state.wakeTime.split(":").map(Number);
+      return h * 60 + m;
+    }
+
+    function getEffectiveTimers() {
+      const timers = { ...state.timers };
+      if (state.active && state.activeStartedAt) {
+        timers[state.active] += (Date.now() - state.activeStartedAt) / 1000;
+      }
+      return timers;
+    }
+
+    function freeSeconds() {
+      const unavailable = Math.min(16, Math.max(0, Number(state.unavailable || 0)));
+      return Math.max(0, (16 - unavailable) * 3600);
+    }
+
+    function renderCategory(key, cfg, timers, free) {
+      const actual = timers[key] || 0;
+      const minTarget = free * cfg.min / 100;
+      const maxTarget = free * cfg.max / 100;
+      const actualPct = free > 0 ? actual / free * 100 : 0;
+      const barPct = Math.min(100, actualPct);
+      const percentText = percentComparisonText(actualPct, cfg.min, cfg.max);
+      const status = getStatus(key, actual, minTarget, maxTarget, free);
+      const activeClass = state.active === key ? " active" : "";
+      const isActive = state.active === key;
+      const disabled = state.ended ? "disabled" : "";
+
+      return `
+        <article class="category${activeClass}">
+          <div class="category-header">
+            <div>
+              <h3>${cfg.label}</h3>
+              <div class="hint">${cfg.description}</div>
+            </div>
+            <span class="badge">${cfg.min}–${cfg.max}%</span>
+          </div>
+
+          <div class="time-main">${formatDuration(actual)}</div>
+          <div class="ideal">Cible projetée : ${formatDuration(minTarget)} – ${formatDuration(maxTarget)}</div>
+          <div class="percent-compare">
+            <div class="percent-pill"><span>% théorique</span><strong>${cfg.min}–${cfg.max}%</strong></div>
+            <div class="percent-pill"><span>% réel</span><strong>${formatPercent(actualPct)}</strong></div>
+          </div>
+          <div class="percent-gap">${percentText}</div>
+
+          <div class="bar-wrap" title="Zone claire = intervalle idéal ; barre pleine = temps réel">
+            <div class="ideal-band" style="left:${cfg.min}%; width:${cfg.max - cfg.min}%; background:${cfg.color};"></div>
+            <div class="actual-bar" style="width:${barPct}%; background:${cfg.color};"></div>
+          </div>
+
+          <div class="status">${status}</div>
+
+          <div class="actions">
+            <button data-start="${key}" ${isActive || state.ended ? "disabled" : ""}>Lancer</button>
+            <button class="${isActive ? "stop" : "secondary"}" data-stop="${key}" ${!isActive || state.ended ? "disabled" : ""}>Stop</button>
+          </div>
+        </article>
+      `;
+    }
+
+    function getStatus(key, actual, minTarget, maxTarget, free) {
+      if (free <= 0) return "Aucun temps libre réel : journée entièrement absorbée par l'incompressible.";
+      if (actual < minTarget) return `Sous la zone idéale : encore ${formatDuration(minTarget - actual)} pour atteindre le bas de l'intervalle.`;
+      if (actual <= maxTarget) return "Dans la zone idéale. Continue sans forcément chercher à remplir au maximum.";
+      const excess = actual - maxTarget;
+      if (key === "dn") return `Dépassement : ${formatDuration(excess)} au-dessus du plafond. Risque de consommation sophistiquée.`;
+      return `Au-dessus de la zone : ${formatDuration(excess)} de plus que la borne haute.`;
+    }
+
+
+
+    function clamp(value, min = 0, max = 1) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function scoreBand(actual, minTarget, maxTarget) {
+      if (maxTarget <= 0) return 1;
+      if (actual >= minTarget && actual <= maxTarget) return 1;
+      if (actual < minTarget) return clamp(actual / Math.max(1, minTarget));
+      const tolerance = Math.max(900, maxTarget * 0.5);
+      return clamp(1 - ((actual - maxTarget) / tolerance));
+    }
+
+    function getScoreRank(score) {
+      if (score >= 90) return "Système souverain";
+      if (score >= 80) return "Journée composée";
+      if (score >= 70) return "Bonne gouvernance";
+      if (score >= 60) return "Structure en construction";
+      if (score >= 45) return "Journée défensive";
+      return "Entropie dominante";
+    }
+
+    function scoreAtLeast(actual, target) {
+      if (target <= 0) return 1;
+      return clamp(actual / target);
+    }
+
+    function scoreAtMost(actual, ceiling) {
+      if (ceiling <= 0) return actual <= 0 ? 1 : 0;
+      if (actual <= ceiling) return 1;
+      return clamp(1 - ((actual - ceiling) / Math.max(900, ceiling * 0.75)));
+    }
+
+    function getScoreDiagnosis(score, scores, timers, free) {
+      const total = Object.values(timers).reduce((a, b) => a + b, 0);
+      if (total < 60) return "Score non consolidé : aucune minute réelle suffisante n’a encore été enregistrée.";
+      const weakest = [...scores].sort((a, b) => (a.points / a.max) - (b.points / b.max))[0];
+      if (score >= 85) return "Très bonne journée : les durées réelles respectent les bornes, la production existe réellement et la dissipation reste dominée.";
+      if (weakest.key === "couverture") return "Le point faible est la quantité de réel mesuré : trop peu de temps libre a été effectivement engagé dans les catégories.";
+      if (weakest.key === "ratio") return "Le point faible est la distribution réelle : les compteurs s’éloignent des intervalles cibles.";
+      if (weakest.key === "production") return "Le point faible est la production effective : il manque encore du temps réellement consacré à créer un output ou un actif.";
+      if (weakest.key === "domination") return "Le point faible est la domination productive : Produire + Agir ne domine pas assez Maintenir + DN dans les durées réelles.";
+      if (weakest.key === "dn") return "Le point faible est la dissipation : elle prend trop de place par rapport au temps libre ou par rapport à la production réelle.";
+      if (weakest.key === "surplus") return "Le point faible est le dépassement : une catégorie sort trop haut de sa borne utile et déséquilibre la journée.";
+      return "Le score est construit uniquement sur le temps chronométré : augmente le critère réel le plus faible.";
+    }
+
+    function computeScores(timers, free) {
+      const p = timers.produire || 0;
+      const a = timers.agir || 0;
+      const m = timers.maintenir || 0;
+      const dn = timers.dn || 0;
+      const totalTracked = p + a + m + dn;
+      const trackedRatio = free > 0 ? clamp(totalTracked / free) : 0;
+      const productiveDomination = (m + dn) > 0 ? (p + a) / (m + dn) : (p + a > 0 ? 2 : 0);
+      const dnByProductionLimit = 0.5 * p;
+      const dnByFreeLimit = free * 0.15;
+
+      const ratioScores = Object.entries(categories).map(([key, cfg]) => {
+        return scoreBand(timers[key] || 0, free * cfg.min / 100, free * cfg.max / 100);
+      });
+      const ratioScore = ratioScores.reduce((x, y) => x + y, 0) / ratioScores.length;
+
+      const productionFloorScore = scoreAtLeast(p, free * 0.35);
+      const productiveDominanceScore = clamp(productiveDomination / 1.2);
+      const dnFreeScore = scoreAtMost(dn, dnByFreeLimit);
+      const dnProductionScore = dn <= dnByProductionLimit ? 1 : scoreAtMost(dn - dnByProductionLimit, Math.max(900, dnByProductionLimit));
+      const dnControlScore = Math.min(dnFreeScore, dnProductionScore);
+
+      const surplusScores = Object.entries(categories).map(([key, cfg]) => {
+        return scoreAtMost(timers[key] || 0, free * cfg.max / 100);
+      });
+      const surplusControlScore = surplusScores.reduce((x, y) => x + y, 0) / surplusScores.length;
+
+      const scores = [
+        {
+          key: "couverture",
+          title: "Réel engagé",
+          points: trackedRatio * 20,
+          max: 20,
+          explain: `Part du temps libre réellement chronométrée : ${Math.round(trackedRatio * 100)}%. Aucun point n’est donné pour du temps prévu mais non effectué.`
+        },
+        {
+          key: "ratio",
+          title: "Cohérence des ratios réels",
+          points: ratioScore * 25,
+          max: 25,
+          explain: "Compare les durées effectivement mesurées aux intervalles cibles de chaque catégorie."
+        },
+        {
+          key: "production",
+          title: "Production effective",
+          points: productionFloorScore * 20,
+          max: 20,
+          explain: "Récompense uniquement le temps réel passé à produire, jusqu’au seuil bas de 35% du temps libre."
+        },
+        {
+          key: "domination",
+          title: "Domination productive réelle",
+          points: productiveDominanceScore * 15,
+          max: 15,
+          explain: "Évalue les durées réelles : (Produire + Agir) / (Maintenir + DN), objectif supérieur à 1,2."
+        },
+        {
+          key: "dn",
+          title: "Dissipation dominée",
+          points: dnControlScore * 15,
+          max: 15,
+          explain: "DN doit rester sous 15% du temps libre et sous 0,5 × Produire, sur les compteurs réels."
+        },
+        {
+          key: "surplus",
+          title: "Absence de dépassement",
+          points: surplusControlScore * 5,
+          max: 5,
+          explain: "Pénalise les catégories qui dépassent leur borne haute réelle, surtout quand elles cannibalisent l’équilibre."
+        }
+      ];
+
+      const total = scores.reduce((sum, item) => sum + item.points, 0);
+      return { total: Math.round(total), scores };
+    }
+
+    function renderScores(timers, free) {
+      const { total, scores } = computeScores(timers, free);
+      const scoreCircle = document.getElementById("scoreCircle");
+      const globalScore = document.getElementById("globalScore");
+      const scoreRank = document.getElementById("scoreRank");
+      const scoreDiagnosis = document.getElementById("scoreDiagnosis");
+      const scoreDetails = document.getElementById("scoreDetails");
+
+      scoreCircle.style.setProperty("--score-angle", `${total * 3.6}deg`);
+      globalScore.textContent = `${total}%`;
+      scoreRank.textContent = getScoreRank(total);
+      scoreDiagnosis.textContent = getScoreDiagnosis(total, scores, timers, free);
+
+      scoreDetails.innerHTML = scores.map(item => {
+        const pct = item.max > 0 ? clamp(item.points / item.max) * 100 : 0;
+        const penaltyClass = pct < 55 ? " penalty" : "";
+        return `
+          <div class="score-item${penaltyClass}">
+            <div class="score-item-head">
+              <div class="score-item-title">${item.title}</div>
+              <div class="score-item-points">${item.points.toFixed(1)} / ${item.max}</div>
+            </div>
+            <div class="score-bar"><div class="score-fill" style="width:${pct}%"></div></div>
+            <div class="score-explain">${item.explain}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function render() {
+      state.wakeTime = wakeInput.value || "08:00";
+      state.unavailable = Number(unavailableInput.value || 0);
+      save();
+
+      const free = freeSeconds();
+      const timers = getEffectiveTimers();
+      const wake = wakeMinutes();
+      const sleepStart = wake - 8 * 60;
+      const sleepEnd = wake;
+
+      document.getElementById("awakeTime").textContent = "16h00";
+      document.getElementById("freeTime").textContent = formatDuration(free);
+      document.getElementById("sleepWindow").textContent = `${formatHM(sleepStart)}–${formatHM(sleepEnd)}`;
+
+      const p = timers.produire || 0;
+      const a = timers.agir || 0;
+      const m = timers.maintenir || 0;
+      const dn = timers.dn || 0;
+      const domination = (m + dn) > 0 ? (p + a) / (m + dn) : 0;
+      document.getElementById("domination").textContent = domination.toFixed(2);
+
+      categoriesEl.innerHTML = Object.entries(categories)
+        .map(([key, cfg]) => renderCategory(key, cfg, timers, free))
+        .join("");
+
+      const ruleDN = document.getElementById("ruleDN");
+      const ruleDomination = document.getElementById("ruleDomination");
+      const dnLimitOk = dn <= 0.5 * p || dn === 0;
+      const domOk = domination >= 1.2;
+
+      ruleDN.innerHTML = `<strong>Plafond DN :</strong> DN ≤ 0,5 × Produire. Actuel : ${formatDuration(dn)} / limite ${formatDuration(0.5 * p)}.`;
+      ruleDN.style.borderColor = dnLimitOk ? "rgba(34,197,94,0.45)" : "rgba(239,68,68,0.55)";
+
+      ruleDomination.innerHTML = `<strong>Domination productive :</strong> objectif &gt; 1,2. Actuel : ${domination.toFixed(2)}.`;
+      ruleDomination.style.borderColor = domOk ? "rgba(34,197,94,0.45)" : "rgba(245,158,11,0.55)";
+
+      renderScores(timers, free);
+      renderDayClosure(timers, free);
+      renderCalendar();
+    }
+
+    function renderDayClosure(timers, free) {
+      const endBtn = document.getElementById("endDay");
+      const resetBtn = document.getElementById("resetAll");
+      const notice = document.getElementById("endedNotice");
+      const saveBtn = document.getElementById("saveDay");
+      wakeInput.disabled = state.ended;
+      unavailableInput.disabled = state.ended;
+      saveBtn.disabled = state.ended;
+      endBtn.disabled = state.ended;
+      resetBtn.textContent = state.ended ? "Nouvelle journée" : "Reset réel";
+      if (state.ended) {
+        const { total } = computeScores(timers, free);
+        notice.style.display = "block";
+        notice.textContent = `Journée clôturée : score final ${total}%. Les compteurs sont figés. Clique sur “Nouvelle journée” demain ou pour repartir à zéro.`;
+      } else {
+        notice.style.display = "none";
+      }
+    }
+
+    function snapshotDay() {
+      stopActive();
+      const timers = getEffectiveTimers();
+      const free = freeSeconds();
+      const { total, scores } = computeScores(timers, free);
+      const key = todayKey();
+      state.history[key] = {
+        date: key,
+        wakeTime: state.wakeTime,
+        unavailable: state.unavailable,
+        free,
+        timers,
+        score: total,
+        rank: getScoreRank(total),
+        details: scores.map(s => ({ key: s.key, title: s.title, points: Number(s.points.toFixed(2)), max: s.max })),
+        endedAt: new Date().toISOString()
+      };
+      state.ended = true;
+      state.endedAt = new Date().toISOString();
+      state.calendarMonth = key.slice(0, 7);
+      save();
+    }
+
+    function resetForNewDay() {
+      state.timers = { produire: 0, agir: 0, maintenir: 0, dn: 0 };
+      state.active = null;
+      state.activeStartedAt = null;
+      state.ended = false;
+      state.endedAt = null;
+      state.lastDate = todayKey();
+      wakeInput.disabled = false;
+      unavailableInput.disabled = false;
+      save();
+    }
+
+    function scoreColor(score) {
+      if (score >= 80) return "#22c55e";
+      if (score >= 60) return "#38bdf8";
+      if (score >= 45) return "#f59e0b";
+      return "#ef4444";
+    }
+
+    function renderCalendar() {
+      const grid = document.getElementById("calendarGrid");
+      const title = document.getElementById("calendarTitle");
+      const list = document.getElementById("historyList");
+      if (!grid || !title || !list) return;
+
+      const [year, month] = state.calendarMonth.split("-").map(Number);
+      const first = new Date(year, month - 1, 1);
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const startOffset = (first.getDay() + 6) % 7;
+      const monthName = first.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+      title.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+
+      const weekdays = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+      let html = weekdays.map(d => `<div class="weekday">${d}</div>`).join("");
+      for (let i = 0; i < startOffset; i++) html += `<div class="calendar-day empty"></div>`;
+      for (let day = 1; day <= daysInMonth; day++) {
+        const key = `${year}-${pad2(month)}-${pad2(day)}`;
+        const rec = state.history[key];
+        if (!rec) {
+          html += `<div class="calendar-day"><div class="calendar-date"><span>${day}</span></div><div class="calendar-rank">Non clôturé</div></div>`;
+          continue;
+        }
+        const t = rec.timers || {};
+        const free = Math.max(1, rec.free || 1);
+        html += `
+          <div class="calendar-day">
+            <div class="calendar-date"><span>${day}</span><span>${formatDuration((t.produire||0)+(t.agir||0)+(t.maintenir||0)+(t.dn||0))}</span></div>
+            <div class="calendar-score" style="color:${scoreColor(rec.score)}">${rec.score}%</div>
+            <div class="calendar-rank">${rec.rank}</div>
+            <div class="mini-bars">
+              <div class="mini-bar"><div class="mini-fill" style="width:${Math.min(100,(t.produire||0)/free*100)}%;background:var(--prod)"></div></div>
+              <div class="mini-bar"><div class="mini-fill" style="width:${Math.min(100,(t.agir||0)/free*100)}%;background:var(--act)"></div></div>
+              <div class="mini-bar"><div class="mini-fill" style="width:${Math.min(100,(t.maintenir||0)/free*100)}%;background:var(--maint)"></div></div>
+              <div class="mini-bar"><div class="mini-fill" style="width:${Math.min(100,(t.dn||0)/free*100)}%;background:var(--dn)"></div></div>
+            </div>
+          </div>`;
+      }
+      grid.innerHTML = html;
+
+      const records = Object.values(state.history).sort((a,b) => b.date.localeCompare(a.date)).slice(0, 12);
+      list.innerHTML = records.length ? records.map(rec => {
+        const t = rec.timers || {};
+        return `<div class="history-row">
+          <div><strong>${rec.date}</strong><div class="history-detail">Réveil ${rec.wakeTime}</div></div>
+          <div class="history-score" style="color:${scoreColor(rec.score)}">${rec.score}%</div>
+          <div class="history-detail">${rec.rank} · P ${formatDuration(t.produire||0)} · A ${formatDuration(t.agir||0)} · M ${formatDuration(t.maintenir||0)} · DN ${formatDuration(t.dn||0)}</div>
+        </div>`;
+      }).join("") : `<div class="history-detail">Aucune journée clôturée pour l’instant.</div>`;
+    }
+
+    function stopActive() {
+      if (!state.active || !state.activeStartedAt) return;
+      const elapsed = (Date.now() - state.activeStartedAt) / 1000;
+      state.timers[state.active] += elapsed;
+      state.active = null;
+      state.activeStartedAt = null;
+      save();
+    }
+
+    categoriesEl.addEventListener("click", (event) => {
+      const startKey = event.target.dataset.start;
+      const stopKey = event.target.dataset.stop;
+
+      if (startKey && !state.ended) {
+        stopActive();
+        state.active = startKey;
+        state.activeStartedAt = Date.now();
+        save();
+        render();
+      }
+
+      if (stopKey && !state.ended) {
+        stopActive();
+        render();
+      }
+    });
+
+    document.getElementById("saveDay").addEventListener("click", render);
+
+    document.getElementById("resetAll").addEventListener("click", () => {
+      resetForNewDay();
+      render();
+    });
+
+    document.getElementById("endDay").addEventListener("click", () => {
+      snapshotDay();
+      render();
+      switchTab("calendar");
+    });
+
+    document.querySelectorAll(".tab-button").forEach(btn => {
+      btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+    });
+
+    function switchTab(tab) {
+      document.querySelectorAll(".tab-button").forEach(btn => btn.classList.toggle("selected", btn.dataset.tab === tab));
+      document.getElementById("tab-today").classList.toggle("visible", tab === "today");
+      document.getElementById("tab-calendar").classList.toggle("visible", tab === "calendar");
+      if (tab === "calendar") renderCalendar();
+    }
+
+    function shiftMonth(delta) {
+      const [year, month] = state.calendarMonth.split("-").map(Number);
+      const d = new Date(year, month - 1 + delta, 1);
+      state.calendarMonth = monthKey(d);
+      save();
+      renderCalendar();
+    }
+
+    document.getElementById("prevMonth").addEventListener("click", () => shiftMonth(-1));
+    document.getElementById("nextMonth").addEventListener("click", () => shiftMonth(1));
+
+    wakeInput.addEventListener("change", render);
+    unavailableInput.addEventListener("input", render);
+
+    setInterval(render, 1000);
+    render();
+  </script>
+</body>
+</html>
